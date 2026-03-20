@@ -1,0 +1,10 @@
+skill: weather
+version: 1.0.0
+description: "Open-Meteo 기반 한국 날씨 MCP 서버 (API 키 불필요)"
+core_version: 0.1.0
+adds:
+  - container/agent-runner/src/weather-mcp.ts
+modifies:
+  - container/agent-runner/src/index.ts
+conflicts: []
+depends: []
