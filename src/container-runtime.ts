@@ -19,6 +19,18 @@ export function hostGatewayArgs(): string[] {
   return [];
 }
 
+/**
+ * DNS 설정 args를 반환합니다.
+ * Apple Container는 macOS에서 외부 DNS를 자동으로 상속하지 않아
+ * 공개 DNS 서버를 명시적으로 지정해야 외부 도메인 조회가 가능합니다.
+ */
+export function dnsArgs(): string[] {
+  if (os.platform() === 'darwin') {
+    return ['--dns', '1.1.1.1', '--dns', '8.8.8.8'];
+  }
+  return [];
+}
+
 /** Returns CLI args for a readonly bind mount. */
 export function readonlyMountArgs(
   hostPath: string,

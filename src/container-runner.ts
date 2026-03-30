@@ -21,6 +21,7 @@ import { resolveGroupFolderPath, resolveGroupIpcPath } from './group-folder.js';
 import { logger } from './logger.js';
 import {
   CONTAINER_RUNTIME_BIN,
+  dnsArgs,
   hostGatewayArgs,
   readonlyMountArgs,
   stopContainer,
@@ -261,6 +262,9 @@ async function buildContainerArgs(
 
   // Runtime-specific args for host gateway resolution
   args.push(...hostGatewayArgs());
+
+  // macOS(Apple Container)는 외부 DNS를 자동으로 상속하지 않으므로 명시적으로 설정
+  args.push(...dnsArgs());
 
   // Run as host user so bind-mounted files are accessible.
   // Skip when running as root (uid 0), as the container's node user (uid 1000),
