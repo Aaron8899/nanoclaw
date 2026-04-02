@@ -53,7 +53,9 @@ describe('resolveHostGateway', () => {
       'test',
     ];
     resolveHostGateway(args);
-    expect(args[1]).toBe(`ANTHROPIC_BASE_URL=http://${APPLE_CONTAINER_HOST_IP}:3001`);
+    expect(args[1]).toBe(
+      `ANTHROPIC_BASE_URL=http://${APPLE_CONTAINER_HOST_IP}:3001`,
+    );
     expect(args[3]).toBe('test');
   });
 });
