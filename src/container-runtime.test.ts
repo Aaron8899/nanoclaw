@@ -17,8 +17,11 @@ vi.mock('child_process', () => ({
 }));
 
 import {
+  APPLE_CONTAINER_HOST_IP,
+  CONTAINER_HOST_GATEWAY,
   CONTAINER_RUNTIME_BIN,
   readonlyMountArgs,
+  resolveHostGateway,
   stopContainer,
   ensureContainerRuntimeRunning,
   cleanupOrphans,
@@ -41,6 +44,20 @@ describe('readonlyMountArgs', () => {
   });
 });
 
+describe('resolveHostGateway', () => {
+  it('replaces host.docker.internal with Apple Container host IP on darwin', () => {
+    const args = [
+      '-e',
+      `ANTHROPIC_BASE_URL=http://${CONTAINER_HOST_GATEWAY}:3001`,
+      '--name',
+      'test',
+    ];
+    resolveHostGateway(args);
+    expect(args[1]).toBe(`ANTHROPIC_BASE_URL=http://${APPLE_CONTAINER_HOST_IP}:3001`);
+    expect(args[3]).toBe('test');
+  });
+});
+
 describe('stopContainer', () => {
   it('calls docker stop for valid container names', () => {
     stopContainer('nanoclaw-test-123');
@@ -51,8 +68,12 @@ describe('stopContainer', () => {
   });
 
   it('rejects names with shell metacharacters', () => {
-    expect(() => stopContainer('foo; rm -rf /')).toThrow('Invalid container name');
-    expect(() => stopContainer('foo$(whoami)')).toThrow('Invalid container name');
+    expect(() => stopContainer('foo; rm -rf /')).toThrow(
+      'Invalid container name',
+    );
+    expect(() => stopContainer('foo$(whoami)')).toThrow(
+      'Invalid container name',
+    );
     expect(() => stopContainer('foo`id`')).toThrow('Invalid container name');
     expect(mockExecSync).not.toHaveBeenCalled();
   });

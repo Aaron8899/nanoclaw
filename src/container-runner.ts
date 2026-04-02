@@ -22,9 +22,9 @@ import { logger } from './logger.js';
 import {
   CONTAINER_HOST_GATEWAY,
   CONTAINER_RUNTIME_BIN,
-  dnsArgs,
   hostGatewayArgs,
   readonlyMountArgs,
+  resolveHostGateway,
   stopContainer,
 } from './container-runtime.js';
 import { detectAuthMode } from './credential-proxy.js';
@@ -263,8 +263,8 @@ function buildContainerArgs(
   // Runtime-specific args for host gateway resolution
   args.push(...hostGatewayArgs());
 
-  // macOS(Apple Container)는 외부 DNS를 자동으로 상속하지 않으므로 명시적으로 설정
-  args.push(...dnsArgs());
+  // macOS(Apple Container)는 --add-host를 지원하지 않으므로 args에서 직접 교체
+  resolveHostGateway(args);
 
   // Run as host user so bind-mounted files are accessible.
   // Skip when running as root (uid 0), as the container's node user (uid 1000),

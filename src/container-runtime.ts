@@ -15,8 +15,17 @@ export const CONTAINER_RUNTIME_BIN = 'container';
 export const CONTAINER_HOST_GATEWAY = 'host.docker.internal';
 
 /**
+ * Apple Container(macOS) 가상 네트워크에서 호스트 IP.
+ * macOS Virtualization framework가 192.168.64.0/24 서브넷을 고정으로 사용하며
+ * 호스트는 항상 .1 주소입니다.
+ */
+export const APPLE_CONTAINER_HOST_IP = '192.168.64.1';
+
+/**
  * Address the credential proxy binds to.
- * Docker Desktop (macOS): 127.0.0.1 — the VM routes host.docker.internal to loopback.
+ * Apple Container (macOS): 192.168.64.1 — the VM host interface.
+ *   Docker Desktop과 달리 Apple Container는 host.docker.internal을 loopback으로
+ *   라우팅하지 않으므로, 프록시는 가상 네트워크 인터페이스에서 수신해야 합니다.
  * Docker (Linux): bind to the docker0 bridge IP so only containers can reach it,
  *   falling back to 0.0.0.0 if the interface isn't found.
  */
@@ -24,7 +33,12 @@ export const PROXY_BIND_HOST =
   process.env.CREDENTIAL_PROXY_HOST || detectProxyBindHost();
 
 function detectProxyBindHost(): string {
-  if (os.platform() === 'darwin') return '127.0.0.1';
+  if (os.platform() === 'darwin') {
+    // Apple Container의 가상 네트워크 인터페이스(192.168.64.1)는 container system
+    // 시작 후에만 생성됩니다. NanoClaw가 먼저 시작될 수 있으므로 0.0.0.0에
+    // 바인딩하여 항상 기동 가능하게 합니다. 컨테이너에서는 192.168.64.1로 접속합니다.
+    return '0.0.0.0';
+  }
 
   // WSL uses Docker Desktop (same VM routing as macOS) — loopback is correct.
   // Check /proc filesystem, not env vars — WSL_DISTRO_NAME isn't set under systemd.
@@ -50,15 +64,18 @@ export function hostGatewayArgs(): string[] {
 }
 
 /**
- * DNS 설정 args를 반환합니다.
- * Apple Container는 macOS에서 외부 DNS를 자동으로 상속하지 않아
- * 공개 DNS 서버를 명시적으로 지정해야 외부 도메인 조회가 가능합니다.
+ * container args에서 host.docker.internal을 실제 호스트 IP로 교체합니다.
+ * Apple Container는 --add-host를 지원하지 않으며 host.docker.internal을 자동으로
+ * 등록하지 않으므로, OneCLI가 설정한 ANTHROPIC_BASE_URL 등의 값을 직접 교체합니다.
+ * @param args - container run에 전달할 args 배열 (in-place 수정)
  */
-export function dnsArgs(): string[] {
-  if (os.platform() === 'darwin') {
-    return ['--dns', '1.1.1.1', '--dns', '8.8.8.8'];
+export function resolveHostGateway(args: string[]): void {
+  if (os.platform() !== 'darwin') return;
+  for (let i = 0; i < args.length; i++) {
+    if (args[i].includes(CONTAINER_HOST_GATEWAY)) {
+      args[i] = args[i].replaceAll(CONTAINER_HOST_GATEWAY, APPLE_CONTAINER_HOST_IP);
+    }
   }
-  return [];
 }
 
 /** Returns CLI args for a readonly bind mount. */
