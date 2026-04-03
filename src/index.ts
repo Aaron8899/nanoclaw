@@ -4,6 +4,7 @@ import path from 'path';
 import {
   ASSISTANT_NAME,
   CREDENTIAL_PROXY_PORT,
+  DATA_DIR,
   DEFAULT_TRIGGER,
   getTriggerPattern,
   GROUPS_DIR,
@@ -524,7 +525,46 @@ function ensureContainerSystemRunning(): void {
   cleanupOrphans();
 }
 
+/** PID 락 파일 경로 */
+const PID_FILE = path.join(DATA_DIR, 'nanoclaw.pid');
+
+/**
+ * 이미 실행 중인 NanoClaw 인스턴스가 있으면 종료합니다.
+ * 중복 실행으로 인한 메시지 중복 발송을 방지합니다.
+ */
+function acquirePidLock(): void {
+  if (fs.existsSync(PID_FILE)) {
+    const existing = parseInt(fs.readFileSync(PID_FILE, 'utf-8').trim(), 10);
+    if (!isNaN(existing)) {
+      try {
+        // 프로세스가 살아있는지 확인 (signal 0은 kill하지 않고 존재 여부만 확인)
+        process.kill(existing, 0);
+        console.error(
+          `\n이미 NanoClaw가 실행 중입니다 (PID: ${existing}). 중복 실행을 방지하기 위해 종료합니다.\n` +
+            `실행 중인 서비스를 먼저 종료하려면: kill ${existing}\n`,
+        );
+        process.exit(1);
+      } catch {
+        // 프로세스가 없으면 stale 락 파일 제거 후 계속
+        logger.warn({ stalePid: existing }, 'Stale PID lock file removed');
+      }
+    }
+  }
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+  fs.writeFileSync(PID_FILE, String(process.pid));
+}
+
+/** PID 락 파일을 삭제합니다. */
+function releasePidLock(): void {
+  try {
+    fs.unlinkSync(PID_FILE);
+  } catch {
+    /* 이미 없으면 무시 */
+  }
+}
+
 async function main(): Promise<void> {
+  acquirePidLock();
   ensureContainerSystemRunning();
   initDatabase();
   logger.info('Database initialized');
@@ -540,6 +580,7 @@ async function main(): Promise<void> {
   // Graceful shutdown handlers
   const shutdown = async (signal: string) => {
     logger.info({ signal }, 'Shutdown signal received');
+    releasePidLock();
     proxyServer.close();
     await queue.shutdown(10000);
     for (const ch of channels) await ch.disconnect();
